@@ -2,7 +2,8 @@
 
 1. Use `sconfig` to:
 	- Change the hostname
-	-Change the DNS server to our own IP address
+	- Configure the server's IP address
+	- Change the DNS server to our own IP address
 
 2. Install the Active Directory Windows Feature
 
@@ -10,11 +11,17 @@
 Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
 ```
 
+3. Create a new forest
+
 ```shell
-Get-NetIPAddress
+Install-ADDSForest -DomainName "xyz.com"
 ```
 
-# Joining the Workstation to the Domain
+# 02 Domain Integration
+
+1. Configure the workstation's DNS server to point to DC1
+
+2. Join the Workstation to the Domain
 
 ```shell
 Add-Computer -DomainName xyz.com -Credential (Get-Credential)
