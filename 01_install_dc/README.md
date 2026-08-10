@@ -7,13 +7,13 @@
 
 2. Install the Active Directory Windows Feature
 
-```shell
+```powershell
 Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
 ```
 
 3. Create a new forest
 
-```shell
+```powershell
 Install-ADDSForest -DomainName "xyz.com"
 ```
 
@@ -23,7 +23,7 @@ Install-ADDSForest -DomainName "xyz.com"
 
 2. Join the Workstation to the Domain
 
-```shell
+```powershell
 Add-Computer -DomainName xyz.com -Credential (Get-Credential)
 
 Restart-Computer
