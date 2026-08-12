@@ -1,56 +1,56 @@
-# Phase 2 : Service de Fichiers et Permissions Network / NTFS
+# 03 File Services and Network / NTFS Permissions
 
-Ce module couvre la création d'un dossier partagé centralisé pour le département RH et l'application fine des autorisations réseau (SMB) et système de fichiers (NTFS) selon la méthode AGDLP.
+This module covers the creation of a centralized shared folder for the HR department and the fine-grained application of network (SMB) and file system (NTFS) permissions according to the AGDLP method.
 
-### Objectifs :
-* Créer le dossier local `C:\Partages\Donnees_RH` et le partager sous le nom caché `RH$`.
-* Configurer le partage SMB avec un accès `Tout le monde = Contrôle Total`.
-* Désactiver l'héritage NTFS et restreindre les droits au groupe `DL_Partage_RH_RW`.
-* **Résultat attendu :** Julie (`j.rh`) a un accès complet en modification, tandis que Marc (`m.tech`) reçoit un message *"Accès refusé"*.
+### Objectives:
 
+* Create the local folder `C:\Partages\Donnees_RH` and share it under the hidden name `RH$`.
+* Configure the SMB share with `Everyone = Full Control` access.
+* Disable NTFS inheritance and restrict permissions to the `DL_Partage_RH_RW` group.
+* **Expected result:** Julie (`j.rh`) has full modify access, while Marc (`m.tech`) receives an *"Access denied"* message.
 
-### Règle d'or des partages Active Directory :
-* **Permissions de Partage (SMB) :** Ouvertes au maximum (`Tout le monde = Contrôle Total`).
-* **Permissions NTFS (Sécurité locale) :** Verrouillées précisément avec les groupes de sécurité locaux de domaine (`DL_*`).
+### Golden Rule for Active Directory Shares:
 
+* **Share Permissions (SMB):** Open as much as possible (`Everyone = Full Control`).
+* **NTFS Permissions (Local Security):** Precisely restricted using domain local security groups (`DL_*`).
 
-## 01. Création du dossier et du partage SMB
+## 1. Creating the Folder and SMB Share
 
 ```powershell
-# 1. Création du dossier local sur le serveur (-Force crée les dossiers parents si inexistants)
+# 1. Create the local folder on the server (-Force creates parent folders if they do not exist)
 New-Item -Path "C:\Partages\Donnees_RH" -ItemType Directory -Force
 
-# 2. Création du partage réseau SMB (Partage caché RH$)
+# 2. Create the SMB network share (Hidden RH$ share)
 New-SmbShare -Name "RH$" `
              -Path "C:\Partages\Donnees_RH" `
              -FullAccess "Everyone" `
-             -Description "Dossier confidentiel de l'équipe RH"
+             -Description "Confidential HR department folder"
 ```
 
-## 02. Configuration des permissions NTFS (Méthode AGDLP)
+## 2. Configuring NTFS Permissions (AGDLP Method)
 
-Par défaut, un nouveau dossier hérite des permissions du disque C:. Il faut donc rompre l'héritage, réinitialiser les accès système de base et accorder les droits exclusifs au groupe DL_Partage_RH_RW.
+By default, a new folder inherits permissions from the C: drive. Therefore, inheritance must be broken, basic system access must be reset, and exclusive access must be granted to the `DL_Partage_RH_RW` group.
 
 ```powershell
-# Définition du chemin
+# Define the path
 $Path = "C:\Partages\Donnees_RH"
 
-# 1. Récupération de l'ACL actuelle
+# 1. Retrieve the current ACL
 $Acl = Get-Acl -Path$Path
 
-# 2. Désactivation de l'héritage ($true = Protéger l'ACL, $false = Supprimer les règles héritées actuelles)
+# 2. Disable inheritance ($true = Protect the ACL, $false = Remove current inherited rules)
 $Acl.SetAccessRuleProtection($true,$false)
 
-# 3. Réinitialisation des permissions système de base (Administrateurs & SYSTEM)
+# 3. Reset basic system permissions (Administrators & SYSTEM)
 $AdminRule = New-Object System.Security.AccessControl.FileSystemAccessRule("BUILTIN\Administrators", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
 $SystemRule = New-Object System.Security.AccessControl.FileSystemAccessRule("NT AUTHORITY\SYSTEM", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
 
 $Acl.SetAccessRule($AdminRule)
 $Acl.SetAccessRule($SystemRule)
 
-# 4. Ajout du groupe Domaine Local avec droits de Modification (Read, Write, Delete)
-$GroupIdentity = "xyz\DL_Partage_RH_RW" # Remplacez 'xyz' par le nom NetBIOS de votre domaine
-$Rights = "Modify"                      # "Modify" inclut Lecture, Écriture et Suppression
+# 4. Add the Domain Local group with Modify permissions (Read, Write, Delete)
+$GroupIdentity = "xyz\DL_Partage_RH_RW" # Replace 'xyz' with your domain's NetBIOS name
+$Rights = "Modify"                      # "Modify" includes Read, Write, and Delete
 $Inheritance = "ContainerInherit, ObjectInherit"
 $Propagation = "None"
 $Type = "Allow"
@@ -58,26 +58,28 @@ $Type = "Allow"
 $RHAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($GroupIdentity, $Rights,$Inheritance, $Propagation,$Type)
 $Acl.AddAccessRule($RHAccessRule)
 
-# 5. Application de la nouvelle ACL sur le dossier
+# 5. Apply the new ACL to the folder
 Set-Acl -Path $Path -AclObject$Acl
 ```
 
-## 03. Vérification des accès
+## 3. Access Verification
 
-Pour valider le fonctionnement depuis la VM client Windows 11 :
+To validate the functionality from the Windows 11 client VM:
 
-    1. Test avec Julie Rh (j.rh) :
+```
+1. Test with Julie Rh (j.rh):
 
-        - Connexion sur la VM client avec le compte j.rh.
+    - Log in to the client VM with the j.rh account.
 
-        - Ouvrir l'explorateur de fichiers et saisir : \\DC1\RH$ (remplacer DC1 par le nom de votre serveur).
+    - Open File Explorer and enter: \\DC1\RH$ (replace DC1 with the name of your server).
 
-        - Résultat : Le dossier s'ouvre. Julie peut créer, modifier et supprimer des fichiers.
+    - Result: The folder opens. Julie can create, modify, and delete files.
 
-    2. Test avec Marc Tech (m.tech) :
+2. Test with Marc Tech (m.tech):
 
-        - Connexion sur la VM client avec le compte m.tech.
+    - Log in to the client VM with the m.tech account.
 
-        - Saisir : \\DC1\RH$.
+    - Enter: \\DC1\RH$.
 
-        - Résultat : Un message "Accès refusé" (Windows Network Error) apparaît.
+    - Result: An "Access denied" message (Windows Network Error) appears.
+```
