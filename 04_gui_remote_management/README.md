@@ -12,8 +12,8 @@ Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.
 
 ## 3. Creating Active Directory Objects
 
-1. **OU:** Right-click on `TechCorp > Users` > **New** > **Organizational Unit** > `Management`.
-2. **User:** Right-click on `Management` > **New** > **User**:
+1. **OU:** Right-click on `TechCorp > Users` > **New** > **Organizational Unit** > `Direction`.
+2. **User:** Right-click on `Direction` > **New** > **User**:
 
 * Full name: `Alain Dir`
 * Login: `a.dir`
@@ -31,8 +31,8 @@ Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.
 2. Navigate to: **System Tools** > **Shared Folders** > **Shares**.
 3. Right-click in the empty area > **New Share...**:
 
-* **Folder path:** `C:\Shares\Management`
-* **Share name:** `Management$`
+* **Folder path:** `C:\Shares\Direction`
+* **Share name:** `Direction$`
 * **Share permissions:** *Customize* > `Everyone` -> Check **Full Control**.
 
 ## 5. Configuring NTFS Permissions
@@ -52,5 +52,5 @@ Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.
 
 ## 6. Validating Client Access (TECHCORP\a.dir)
 
-1. `Win + R` > Enter `\\DC1\Management$`.
+1. `Win + R` > Enter `\\DC1\Direction$`.
 2. Create a test file `test_ecriture.txt` in the folder to validate write permissions.
