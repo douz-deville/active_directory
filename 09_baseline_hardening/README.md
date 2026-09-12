@@ -9,6 +9,7 @@ Get-WindowsFeature | Where-Object { $_.Installed -and $_.FeatureType -eq "Role" 
 
 # Third-party software inventory
 Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName } | Select-Object DisplayName, DisplayVersion, Publisher
+
 ```
 
 **2. Disabling Legacy Services & Protocols**
@@ -28,6 +29,7 @@ Get-WmiObject Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -e
 
 # SMBv1
 Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
+
 ```
 
 **3. Authentication & Integrity Hardening**
@@ -43,30 +45,35 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters"
 
 # NTLMv2 only — strict mode
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Value 5 -Type DWORD -Force
+
 ```
 
 **4. Windows Defender Firewall Configuration**
-Enable all firewall profiles, systematically block inbound traffic, and isolate outbound traffic.
+Enable all firewall profiles, systematically block inbound traffic, isolate outbound public traffic, and allow domain/private outbound traffic to guarantee replication stability.
 
 ```powershell
 # Enable profiles and block inbound traffic
 Set-NetFirewallProfile -Profile Domain, Private, Public -Enabled True
 Set-NetFirewallProfile -Profile Domain, Private, Public -DefaultInboundAction Block
 
-# Outbound filtering (Outbound Isolation)
-Set-NetFirewallProfile -Profile Public, Private -DefaultOutboundAction Block
-Set-NetFirewallProfile -Profile Domain -DefaultOutboundAction Allow
+# Outbound filtering (Block Public, Allow Domain & Private)
+Set-NetFirewallProfile -Profile Public -DefaultOutboundAction Block
+Set-NetFirewallProfile -Profile Domain, Private -DefaultOutboundAction Allow
 
 # Allow native AD DS traffic
 $RuleGroups = @("Active Directory Domain Services", "DNS Service", "Core Networking", "File and Printer Sharing")
 foreach ($Group in $RuleGroups) { Enable-NetFirewallRule -DisplayGroup $Group -ErrorAction SilentlyContinue }
+
+# Explicit Outbound AD Rule for Private profile fallback
+New-NetFirewallRule -DisplayName "AD-Outbound-Essential" -Direction Outbound -Protocol TCP -RemotePort 53,88,135,389,445,3268,49152-65535 -Action Allow -Profile Private -ErrorAction SilentlyContinue
+
 ```
 
 **5. Final Validated Audit Script (`Audit-Baseline.ps1`)**
 
 ```powershell
 Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "   TIER 0 BASELINE HARDENING COMPLIANCE AUDIT      " -ForegroundColor Cyan
+Write-Host "    TIER 0 BASELINE HARDENING COMPLIANCE AUDIT      " -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
 
 # 1. Services
@@ -95,7 +102,7 @@ Write-Host "  - Mandatory SMB Signing : [$smbSigStatus]" -ForegroundColor $smbSi
 
 $FwProfiles = Get-NetFirewallProfile
 foreach ($p in $FwProfiles) {
-    $outExpected = if ($p.Name -eq 'Domain') { 'Allow' } else { 'Block' }
+    $outExpected = if ($p.Name -eq 'Public') { 'Block' } else { 'Allow' }
     $isOK = (($p.Enabled -eq $true) -and ($p.DefaultInboundAction -eq 'Block') -and ($p.DefaultOutboundAction -eq $outExpected))
     $status = if ($isOK) { "PASS" } else { "FAIL" }
     $color = if ($isOK) { "Green" } else { "Red" }
@@ -138,6 +145,7 @@ $rolesColor = if ($rolesPass) { "Green" } else { "Red" }
 Write-Host "  - No non-essential roles installed : [$rolesStatus]" -ForegroundColor $rolesColor
 
 Write-Host "`n====================================================" -ForegroundColor Cyan
-Write-Host "                 AUDIT COMPLETE                    " -ForegroundColor Cyan
+Write-Host "                AUDIT COMPLETE                      " -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
+
 ```
